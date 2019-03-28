@@ -32,17 +32,17 @@ SerialDevice::~SerialDevice() {
 
 bool SerialDevice::Init() {
 
-  LOG_INFO << "Attempting to open device " << port_name_ << " with baudrate " << baudrate_;
+  DLOG_INFO << "Attempting to open device " << port_name_ << " with baudrate " << baudrate_;
   if (port_name_.c_str() == nullptr) {
     port_name_ = "/dev/pts/22";
   }
   if (OpenDevice() && ConfigDevice()) {
     FD_ZERO(&serial_fd_set_);
     FD_SET(serial_fd_, &serial_fd_set_);
-    LOG_INFO << "...Serial started successfully.";
+    DLOG_INFO << "...Serial started successfully.";
     return true;
   } else {
-    LOG_ERROR << "...Failed to start serial "<<port_name_;
+    DLOG_ERROR << "...Failed to start serial "<<port_name_;
     CloseDevice();
     return false;
   }
@@ -157,12 +157,12 @@ bool SerialDevice::ConfigDevice() {
 
 int SerialDevice::Read(uint8_t *buf, int len) {
   int ret = -1;
-//    LOG_INFO<<"run Read";
+    LOG_INFO<<"run Read";
   if (NULL == buf) {
       LOG_INFO<<"run NULL";
     return -1;
   } else {
-//    LOG_INFO<<"buf:"<< sizeof(*buf);
+    LOG_INFO<<"buf:"<< sizeof(*buf);
     ret = read(serial_fd_, buf, len);
     LOG_INFO<<"Read once length:"<<ret;
     while (ret == 0) {
@@ -173,7 +173,7 @@ int SerialDevice::Read(uint8_t *buf, int len) {
       LOG_INFO << "Reconnect Success.";
       ret = read(serial_fd_, buf, len);
     }
-//      LOG_INFO<<"run  return ret:"<<ret;
+      LOG_INFO<<"run  return ret:"<<ret;
     return ret;
   }
 }

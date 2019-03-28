@@ -79,7 +79,7 @@ class SubscriptionBase {
     cmd_info_->cmd_set = cmd_set;
     cmd_info_->receiver = receiver;
     cmd_info_->sender = sender;
-    //cmd_info_->need_ack = false;
+    cmd_info_->need_ack = false;
   }
   ~SubscriptionBase() = default;
   std::shared_ptr<Handle> GetHandle() {
@@ -137,7 +137,7 @@ class PublisherBase {
     cmd_info_->cmd_set = cmd_set;
     cmd_info_->receiver = receiver;
     cmd_info_->sender = sender;
-    //cmd_info_->need_ack = false;
+    cmd_info_->need_ack = false;
   }
   ~PublisherBase() = default;
   std::shared_ptr<Handle> GetHandle() {
@@ -182,7 +182,7 @@ class ClientBase {
     cmd_info_->cmd_set = cmd_set;
     cmd_info_->receiver = receiver;
     cmd_info_->sender = sender;
-    //cmd_info_->need_ack = true;
+    cmd_info_->need_ack = true;
   }
   ~ClientBase() = default;
   std::shared_ptr<Handle> GetHandle() {
@@ -290,7 +290,7 @@ class ServiceBase {
     cmd_info_->cmd_set = cmd_set;
     cmd_info_->receiver = receiver;
     cmd_info_->sender = sender;
-    //cmd_info_->need_ack = true;
+    cmd_info_->need_ack = true;
   }
   ~ServiceBase() = default;
 

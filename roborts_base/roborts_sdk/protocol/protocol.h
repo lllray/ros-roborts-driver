@@ -49,7 +49,6 @@ typedef struct Header {
   uint32_t crc : 16;
 } Header;
   */
-/*
  typedef struct Header {
      uint16_t sof : 8;
      uint16_t session_id : 7;
@@ -60,17 +59,6 @@ typedef struct Header {
      uint16_t receiver: 8;
      uint16_t seq_num :16;//only read
      uint16_t crc :16;
- } Header;
-*/
-
- typedef struct Header {
-     uint16_t sof : 16;
-     uint16_t version : 8;
-     uint16_t receiver: 4;
-     uint16_t sender: 4;
-     uint16_t session_id : 8;
-     uint16_t length : 8;
-
  } Header;
 
 //END 0323
@@ -85,7 +73,7 @@ typedef struct CommandInfo {
   uint8_t cmd_set;
   //! command id for different commands in the module
   uint8_t cmd_id;
-  //bool need_ack;
+  bool need_ack;
   uint8_t sender;
   uint8_t receiver;
   uint16_t length;
@@ -95,11 +83,10 @@ typedef struct CommandInfo {
  * @brief Message header
  * @details Used as an interface with dispatch layer.
  */
-
 typedef struct MessageHeader {
   uint16_t seq_num;
   uint8_t session_id;
-  //bool is_ack;
+  bool is_ack;
 } MessageHeader;
 
 /**
@@ -458,10 +445,7 @@ class Protocol {
  * @param length Input data length
  * @return CRC32
  */
-  //LX CHANGE 0325
- // uint32_t CRC32Calc(const uint8_t *data_ptr, size_t length);
-  uint16_t CRC32Calc(const uint8_t *data_ptr, size_t length);
-  //END 0325
+  uint32_t CRC32Calc(const uint8_t *data_ptr, size_t length);
   /**
    * @brief Check if the calculated header CRC16 is same with CRC16 in the header
    * @param data_ptr Input pointer of data head
@@ -493,23 +477,14 @@ class Protocol {
   //END 0322
 */
   //! length of CRC16
-  //LX CHANGE 0325
-  //static const size_t CRC_HEAD_LEN = sizeof(uint16_t);
-  static const size_t CRC_HEAD_LEN = 0;
-
+  static const size_t CRC_HEAD_LEN = sizeof(uint16_t);
   //! length of CRC32
-  //static const size_t CRC_DATA_LEN = sizeof(uint32_t);
-  static const size_t CRC_DATA_LEN = sizeof(uint16_t);
-
-        //! length of the pair of command id and command set
-  //static const size_t CMD_SET_PREFIX_LEN = 2 * sizeof(uint8_t);
-  static const size_t CMD_SET_PREFIX_LEN = 0;
-
-  //END 0325
-
+  static const size_t CRC_DATA_LEN = sizeof(uint32_t);
+  //! length of the pair of command id and command set
+  static const size_t CMD_SET_PREFIX_LEN = 2 * sizeof(uint8_t);
 
   //! SOF
-  static const uint16_t SOF = 0xAAAA;
+  static const uint8_t SOF = 0xAA;
   //! version
   static const uint8_t VERSION = 0x00;
   //! local device address

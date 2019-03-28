@@ -128,9 +128,6 @@ const uint8_t crc_tab8[256] = {
 
 const uint8_t  CRC8_INIT  = 0x77;
 const uint16_t CRC16_INIT = 0x3692;
-//LX CHANGE 0325
-//const uint16_t CRC_INIT   = 0x3AA3;
-//END 0325
-const uint16_t HALF_CRC_INIT   = 0x77;
-const uint16_t CRC_INIT   = 0x7777;
+const uint16_t CRC_INIT   = 0x3AA3;
+
 #endif //ROBORTS_SDK_CRC_H

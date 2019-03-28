@@ -52,7 +52,7 @@ class Chassis {
    * @brief Chassis information callback in sdk
    * @param chassis_info Chassis information
    */
-  void ChassisInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_pose> chassis_info);
+  void ChassisInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_info> chassis_info);
 
   /**
    * @brief Chassis speed control callback in ROS
@@ -80,7 +80,7 @@ class Chassis {
   //! sdk publisher for chassis speed control
   std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_speed>> chassis_speed_pub_;
   //! sdk publisher for chassis speed and acceleration control
-//  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_spd_acc>> chassis_spd_acc_pub_;
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_spd_acc>> chassis_spd_acc_pub_;
 
   //! ros node handler
   ros::NodeHandle ros_nh_;

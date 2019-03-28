@@ -16,10 +16,6 @@
  ***************************************************************************/
 
 #include "protocol.h"
-//LX ADD 0325
-#include "protocol_define.h"
-//END 0325
-
 #include <iomanip>
 
 namespace roborts_sdk {
@@ -128,11 +124,11 @@ void Protocol::AutoRepeatSendCheck() {
 
 void Protocol::ReceivePool() {
   while (running_) {
-      //LOG_INFO<<"run ReceivePool";
+      LOG_INFO<<"run ReceivePool";
     RecvContainer *container_ptr = Receive();
       LOG_INFO<<"run container_ptr="<<container_ptr;
     if (container_ptr) {
-      //LOG_INFO<<"run container_ptr==ture";
+      LOG_INFO<<"run container_ptr==ture";
       if (buffer_pool_map_.count(std::make_pair(container_ptr->command_info.cmd_set,
                                                 container_ptr->command_info.cmd_id)) == 0) {
         buffer_pool_map_[std::make_pair(container_ptr->command_info.cmd_set,
@@ -174,20 +170,38 @@ bool Protocol::Take(const CommandInfo *command_info,
 
     bool mismatch = false;
 
+    if (int(container.command_info.need_ack) != int(command_info->need_ack)){
+      DLOG_ERROR << "Requested need_ack: "<< int(command_info->need_ack)
+                << ", Get need_ack: "<< int(container.command_info.need_ack);
+      mismatch = true;
+    }
+
+    if (container.message_header.is_ack){
+      if (int(container.command_info.receiver) != int(command_info->sender)){
+        DLOG_ERROR << "Requested ACK receiver: "<< std::setw(2) << std::hex << std::setfill('0') << int(command_info->sender)
+                  << ", Get ACK receiver: "<< std::setw(2) << std::hex << std::setfill('0') << int(container.command_info.receiver);
+        mismatch = true;
+      }
+      if (int(container.command_info.sender) != int(command_info->receiver)){
+        DLOG_ERROR << "Requested ACK sender: "<< std::setw(2) << std::hex << std::setfill('0') << int(command_info->receiver)
+                  << ", Get ACK sender: "<< std::setw(2) << std::hex << std::setfill('0') << int(container.command_info.sender);
+        mismatch = true;
+      }
+    }
+    else{
       if (int(container.command_info.receiver) != int(command_info->receiver)){
-        DLOG_ERROR << "Requested receiver: " << std::setw(2) << std::hex << std::setfill('0')
-                   << int(container.command_info.receiver)
-                   << ", Get receiver: " << std::setw(2) << std::hex << std::setfill('0')
-                   << int(container.command_info.receiver);
+        DLOG_ERROR << "Requested receiver: "<< std::setw(2) << std::hex << std::setfill('0') << int(container.command_info.receiver)
+                  << ", Get receiver: "<< std::setw(2) << std::hex << std::setfill('0') << int(container.command_info.receiver);
         mismatch = true;
       }
 
       if (int(container.command_info.sender) != int(command_info->sender)){
-        DLOG_ERROR << "Requested sender: " << std::setw(2) << std::hex << std::setfill('0') << int(command_info->sender)
-                   << ", Get sender: " << std::setw(2) << std::hex << std::setfill('0')
-                   << int(container.command_info.sender);
+        DLOG_ERROR << "Requested sender: "<< std::setw(2) << std::hex << std::setfill('0') << int(command_info->sender)
+                  << ", Get sender: "<< std::setw(2) << std::hex << std::setfill('0') << int(container.command_info.sender);
         mismatch = true;
       }
+    }
+
     if (int(container.command_info.length) !=int(command_info->length)){
       DLOG_ERROR << "Requested length: "<< int(command_info->length)
                 <<", Get length: "<< int(container.command_info.length);
@@ -206,11 +220,9 @@ bool Protocol::Take(const CommandInfo *command_info,
     return true;
   }
 }
-
 bool Protocol::SendResponse(const CommandInfo *command_info,
                             const MessageHeader *message_header,
                             void *message_data) {
-  //LOG_INFO<<"run SendResponse!";
   return SendACK(message_header->session_id,
                  message_header->seq_num,
                  command_info->receiver,
@@ -219,15 +231,12 @@ bool Protocol::SendResponse(const CommandInfo *command_info,
 bool Protocol::SendRequest(const CommandInfo *command_info,
                            MessageHeader *message_header,
                            void *message_data) {
-  //LOG_INFO<<"run SendRequest!";
   return SendCMD(command_info->cmd_set, command_info->cmd_id,
                  command_info->receiver, message_data, command_info->length,
                  CMDSessionMode::CMD_SESSION_AUTO, message_header);
 }
-
 bool Protocol::SendMessage(const CommandInfo *command_info,
                            void *message_data) {
-  LOG_INFO<<"run SendMessage!";
   return SendCMD(command_info->cmd_set, command_info->cmd_id,
                  command_info->receiver, message_data, command_info->length,
                  CMDSessionMode::CMD_SESSION_0);
@@ -328,10 +337,8 @@ bool Protocol::SendCMD(uint8_t cmd_set, uint8_t cmd_id, uint8_t receiver,
   CMDSession *cmd_session_ptr = nullptr;
   Header *header_ptr = nullptr;
   uint8_t cmd_set_prefix[] = {cmd_id, cmd_set};
- //LX CHANGE 0325
- // uint32_t crc_data;
- uint16_t crc_data;
- //END 0325
+  uint32_t crc_data;
+
   uint16_t pack_length = 0;
 
 
@@ -345,6 +352,9 @@ bool Protocol::SendCMD(uint8_t cmd_set, uint8_t cmd_id, uint8_t receiver,
       data_length + CRC_DATA_LEN;
 
   //second get the param into the session
+  switch (session_mode) {
+
+    case CMDSessionMode::CMD_SESSION_0:
       //lock
       memory_pool_ptr_->LockMemory();
       cmd_session_ptr = AllocCMDSession(CMDSessionMode::CMD_SESSION_0, pack_length);
@@ -359,27 +369,25 @@ bool Protocol::SendCMD(uint8_t cmd_set, uint8_t cmd_id, uint8_t receiver,
       //pack into cmd_session memory_block
       header_ptr = (Header *) cmd_session_ptr->memory_block_ptr->memory_ptr;
       header_ptr->sof = SOF;
-      header_ptr->length = pack_length - HEADER_LEN - CRC_DATA_LEN;
-      LOG_INFO<< " header_ptr->length  "<<      header_ptr->length ;
+      header_ptr->length = pack_length;
       header_ptr->version = VERSION;
-      header_ptr->session_id = cmd_id;
-      //header_ptr->is_ack = 0;
+      header_ptr->session_id = cmd_session_ptr->session_id;
+      header_ptr->is_ack = 0;
       //header_ptr->reserved0 = 0;
       header_ptr->sender = DEVICE;
       header_ptr->receiver = receiver;
-      LOG_INFO<<header_ptr->sender<<header_ptr->receiver;
       //header_ptr->reserved1 = 0;
-     // header_ptr->seq_num = seq_num_;
-      //header_ptr->crc = CRC16Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
+      header_ptr->seq_num = seq_num_;
+      header_ptr->crc = CRC16Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
 
       if(message_header){
-       // message_header->is_ack = false;
-       // message_header->seq_num = seq_num_;
+        message_header->is_ack = false;
+        message_header->seq_num = seq_num_;
         message_header->session_id = cmd_session_ptr->session_id;
       }
 
       // pack the cmd prefix ,data and data crc into memory block one by one
-      //memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN, cmd_set_prefix, CMD_SET_PREFIX_LEN);
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN, cmd_set_prefix, CMD_SET_PREFIX_LEN);
       memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN, data_ptr, data_length);
 
       crc_data = CRC32Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, pack_length - CRC_DATA_LEN);
@@ -392,7 +400,130 @@ bool Protocol::SendCMD(uint8_t cmd_set, uint8_t cmd_id, uint8_t receiver,
       FreeCMDSession(cmd_session_ptr);
       //unlock
       memory_pool_ptr_->UnlockMemory();
+      break;
 
+    case CMDSessionMode::CMD_SESSION_1:
+      //lock
+      memory_pool_ptr_->LockMemory();
+      cmd_session_ptr = AllocCMDSession(CMDSessionMode::CMD_SESSION_1, pack_length);
+
+      if (cmd_session_ptr == nullptr) {
+        //unlock
+        memory_pool_ptr_->UnlockMemory();
+        DLOG_ERROR << "Allocate CMD session failed.";
+        return false;
+      }
+
+      //may be used more than once, seq_num_ should increase if duplicated.
+      if (seq_num_ == cmd_session_ptr->pre_seq_num) {
+        seq_num_++;
+      }
+
+      //pack into cmd_session memory_block
+      header_ptr = (Header *) cmd_session_ptr->memory_block_ptr->memory_ptr;
+      header_ptr->sof = SOF;
+      header_ptr->length = pack_length;
+      header_ptr->version = VERSION;
+      header_ptr->session_id = cmd_session_ptr->session_id;
+      header_ptr->is_ack = 0;
+      //header_ptr->reserved0 = 0;
+      header_ptr->sender = DEVICE;
+      header_ptr->receiver = receiver;
+      //header_ptr->reserved1 = 0;
+      header_ptr->seq_num = seq_num_;
+      header_ptr->crc = CRC16Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
+
+      if(message_header){
+        message_header->is_ack = false;
+        message_header->seq_num = seq_num_;
+        message_header->session_id = cmd_session_ptr->session_id;
+      }
+
+      // pack the cmd prefix ,data and data crc into memory block one by one
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN, cmd_set_prefix, CMD_SET_PREFIX_LEN);
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN, data_ptr, data_length);
+
+      crc_data = CRC32Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, pack_length - CRC_DATA_LEN);
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + pack_length - CRC_DATA_LEN, &crc_data, CRC_DATA_LEN);
+
+      // seem useless
+      cmd_session_ptr->cmd_id = cmd_id;
+      cmd_session_ptr->cmd_set = cmd_set;
+      cmd_session_ptr->pre_seq_num = seq_num_++;
+
+      cmd_session_ptr->ack_timeout = (ack_timeout > poll_tick_) ? ack_timeout : poll_tick_;
+      cmd_session_ptr->pre_time_stamp = std::chrono::steady_clock::now();
+      cmd_session_ptr->sent = 1;
+      cmd_session_ptr->retry_time = 1;
+      // send it using device
+      DeviceSend(cmd_session_ptr->memory_block_ptr->memory_ptr);
+      //unlock
+      memory_pool_ptr_->UnlockMemory();
+      break;
+
+    case CMDSessionMode::CMD_SESSION_AUTO:
+      //lock
+      memory_pool_ptr_->LockMemory();
+      cmd_session_ptr = AllocCMDSession(CMDSessionMode::CMD_SESSION_AUTO, pack_length);
+
+      if (cmd_session_ptr == nullptr) {
+        //unlock
+        memory_pool_ptr_->UnlockMemory();
+        DLOG_ERROR << "Allocate CMD session failed.";
+        return false;
+      }
+
+      //may be used more than once, seq_num_ should increase if duplicated.
+      if (seq_num_ == cmd_session_ptr->pre_seq_num) {
+        seq_num_++;
+      }
+
+      //pack into cmd_session memory_block
+      header_ptr = (Header *) cmd_session_ptr->memory_block_ptr->memory_ptr;
+      header_ptr->sof = SOF;
+      header_ptr->length = pack_length;
+      header_ptr->version = VERSION;
+      header_ptr->session_id = cmd_session_ptr->session_id;
+      header_ptr->is_ack = 0;
+      //header_ptr->reserved0 = 0;
+      header_ptr->sender = DEVICE;
+      header_ptr->receiver = receiver;
+      //header_ptr->reserved1 = 0;
+      header_ptr->seq_num = seq_num_;
+      header_ptr->crc = CRC16Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
+
+
+      if(message_header){
+        message_header->is_ack = false;
+        message_header->seq_num = seq_num_;
+        message_header->session_id = cmd_session_ptr->session_id;
+      }
+
+      // pack the cmd prefix ,data and data crc into memory block one by one
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN, cmd_set_prefix, CMD_SET_PREFIX_LEN);
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN, data_ptr, data_length);
+
+      crc_data = CRC32Calc(cmd_session_ptr->memory_block_ptr->memory_ptr, pack_length - CRC_DATA_LEN);
+      memcpy(cmd_session_ptr->memory_block_ptr->memory_ptr + pack_length - CRC_DATA_LEN, &crc_data, CRC_DATA_LEN);
+
+      // seem useless
+      cmd_session_ptr->cmd_id = cmd_id;
+      cmd_session_ptr->cmd_set = cmd_set;
+      cmd_session_ptr->pre_seq_num = seq_num_++;
+
+      cmd_session_ptr->ack_timeout = (ack_timeout > poll_tick_) ? ack_timeout : poll_tick_;
+      cmd_session_ptr->pre_time_stamp = std::chrono::steady_clock::now();
+      cmd_session_ptr->sent = 1;
+      cmd_session_ptr->retry_time = retry_time;
+      // send it using device
+      DeviceSend(cmd_session_ptr->memory_block_ptr->memory_ptr);
+      //unlock
+      memory_pool_ptr_->UnlockMemory();
+      break;
+
+    default:DLOG_ERROR << "session mode is not valid";
+      return false;
+  }
 
   return true;
 
@@ -402,10 +533,7 @@ bool Protocol::SendACK(uint8_t session_id, uint16_t seq_num, uint8_t receiver,
                        void *ack_ptr, uint16_t ack_length) {
   ACKSession *ack_session_ptr = nullptr;
   Header *header_ptr = nullptr;
-  // LX CHANGE 0325
-  // uint32_t crc_data = 0;
-  uint16_t crc_data = 0;
-  //END 0325
+  uint32_t crc_data = 0;
   uint16_t pack_length = 0;
 
   if (ack_ptr == nullptr || ack_length == 0) {
@@ -434,17 +562,16 @@ bool Protocol::SendACK(uint8_t session_id, uint16_t seq_num, uint8_t receiver,
     //pack into ack_session memory_block
     header_ptr = (Header *) ack_session_ptr->memory_block_ptr->memory_ptr;
     header_ptr->sof = SOF;
-    header_ptr->length = pack_length - HEADER_LEN - CRC_DATA_LEN;
+    header_ptr->length = pack_length;
     header_ptr->version = VERSION;
     header_ptr->session_id = ack_session_ptr->session_id;
-    //header_ptr->is_ack = 1;
+    header_ptr->is_ack = 1;
     //header_ptr->reserved0 = 0;
     header_ptr->sender = DEVICE;
     header_ptr->receiver = receiver;
-   // LOG_INFO<<header_ptr->sender<<header_ptr->receiver;
     //header_ptr->reserved1 = 0;
-    //header_ptr->seq_num = seq_num;
-    //header_ptr->crc = CRC16Calc(ack_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
+    header_ptr->seq_num = seq_num;
+    header_ptr->crc = CRC16Calc(ack_session_ptr->memory_block_ptr->memory_ptr, HEADER_LEN - CRC_HEAD_LEN);
 
     // pack the cmd prefix ,data and data crc into memory block one by one
     if (ack_ptr != nullptr && ack_length != 0) {
@@ -473,12 +600,12 @@ bool Protocol::DeviceSend(uint8_t *buf) {
 //    printf("send_byte %d:\t %X\n ", i, buf[i]);
 //  }
 //  std::cout<<"----------------"<<std::endl;
-  ans = serial_device_ptr_->Write(buf, header_ptr->length + (HEADER_LEN +CRC_DATA_LEN));
+  ans = serial_device_ptr_->Write(buf, header_ptr->length);
 
   if (ans <= 0) {
     DLOG_ERROR << "Port failed.";
-  } else if (ans != header_ptr->length + (HEADER_LEN +CRC_DATA_LEN)) {
-    DLOG_ERROR << "Port send failed, send length:" << ans << "package length" << header_ptr->length + (HEADER_LEN +CRC_DATA_LEN);
+  } else if (ans != header_ptr->length) {
+    DLOG_ERROR << "Port send failed, send length:" << ans << "package length" << header_ptr->length;
   } else {
     DLOG_INFO << "Port send success.";
     return true;
@@ -491,14 +618,14 @@ RecvContainer *Protocol::Receive() {
 
   //! Bool to check if the protocol parser has finished a full frame
   bool is_frame = false;
-      //LOG_INFO<<"run Receive 1: "<<recv_buff_read_pos_<<"   "<<   recv_buff_read_len_;
+      LOG_INFO<<"run Receive 1: "<<recv_buff_read_pos_<<"   "<<   recv_buff_read_len_;
   //! Step 1: Check if the buffer has been consumed
   if (recv_buff_read_pos_ >= recv_buff_read_len_) {
-   // LOG_INFO<<"run buffer has been consumed ";
+    LOG_INFO<<"run buffer has been consumed ";
     recv_buff_read_pos_ = 0;
     recv_buff_read_len_ = serial_device_ptr_->Read(recv_buff_ptr_, BUFFER_SIZE);
   }
- // LOG_INFO<<"run Receive step 2";
+  LOG_INFO<<"run Receive step 2";
   //! Step 2:
   //! For large data protocol, store the value and only verify the header
   //! For small data protocol, Go through the buffer and return when you
@@ -513,11 +640,11 @@ RecvContainer *Protocol::Receive() {
     recv_stream_ptr_->recv_index += BUFFER_SIZE;
     recv_buff_read_pos_ = BUFFER_SIZE;
   } else {
-      //LOG_INFO<<"run buffer not consumed ";
+      LOG_INFO<<"run buffer not consumed ";
 
     for (recv_buff_read_pos_; recv_buff_read_pos_ < recv_buff_read_len_;
          recv_buff_read_pos_++) {
-        //LOG_INFO<<"run Receive 2: "<<recv_buff_read_pos_<<"   "<<   recv_buff_read_len_;
+        LOG_INFO<<"run Receive 2: "<<recv_buff_read_pos_<<"   "<<   recv_buff_read_len_;
       is_frame = ByteHandler(recv_buff_ptr_[recv_buff_read_pos_]);
 
       if (is_frame) {
@@ -535,9 +662,9 @@ bool Protocol::ByteHandler(const uint8_t byte) {
   recv_stream_ptr_->reuse_index = MAX_PACK_SIZE;
 
   bool is_frame = StreamHandler(byte);
-//LOG_INFO<<"run ByteHandler";
+LOG_INFO<<"run ByteHandler";
   if (reuse_buffer_) {
-   // LOG_INFO<<"run reuse_buffer_ is ture";
+    LOG_INFO<<"run reuse_buffer_ is ture";
     if (recv_stream_ptr_->reuse_count != 0) {
       while (recv_stream_ptr_->reuse_index < MAX_PACK_SIZE) {
         /*! @note because reuse_index maybe re-located, so reuse_index must
@@ -554,12 +681,12 @@ bool Protocol::ByteHandler(const uint8_t byte) {
 }
 
 bool Protocol::StreamHandler(uint8_t byte) {
-  //LOG_INFO<<"run StreamHandler";
+  LOG_INFO<<"run StreamHandler";
   // push the byte into filter buffer
   if (recv_stream_ptr_->recv_index < MAX_PACK_SIZE) {
     recv_stream_ptr_->recv_buff[recv_stream_ptr_->recv_index] = byte;
     recv_stream_ptr_->recv_index++;
-    //LOG_INFO<<"  recv_index1:"<<recv_stream_ptr_->recv_index;
+    LOG_INFO<<"  recv_index1:"<<recv_stream_ptr_->recv_index;
   } else {
     LOG_ERROR << "Buffer overflow";
     memset(recv_stream_ptr_->recv_buff, 0, recv_stream_ptr_->recv_index);
@@ -572,15 +699,14 @@ bool Protocol::StreamHandler(uint8_t byte) {
 
 bool Protocol::CheckStream() {
   Header *header_ptr = (Header *) (recv_stream_ptr_->recv_buff);
-  //header_ptr->length+=(HEADER_LEN + CRC_DATA_LEN);
- // LOG_INFO<<"header_ptr->length ="<<header_ptr->length+(HEADER_LEN + CRC_DATA_LEN);
+
   bool is_frame = false;
   if (recv_stream_ptr_->recv_index < HEADER_LEN) {
     return false;
   } else if (recv_stream_ptr_->recv_index == HEADER_LEN) {
     is_frame = VerifyHeader();
-   // LOG_INFO<<"head check is ok!  is_frame:"<<is_frame;
-  } else if (recv_stream_ptr_->recv_index == header_ptr->length +(HEADER_LEN + CRC_DATA_LEN) ) {
+    LOG_INFO<<"head check is ok!  is_frame:"<<is_frame;
+  } else if (recv_stream_ptr_->recv_index == header_ptr->length) {
     LOG_INFO<<"run VerifyData";
     is_frame = VerifyData();
   }
@@ -590,19 +716,19 @@ bool Protocol::CheckStream() {
 
 bool Protocol::VerifyHeader() {
   Header *header_ptr = (Header *) (recv_stream_ptr_->recv_buff);
-  //header_ptr->length+=(HEADER_LEN + CRC_DATA_LEN);
   bool is_frame = false;
- //LOG_INFO<<"SOF:"<<header_ptr->sof<<"~"<<SOF<<"  VERSION:"<<header_ptr->version<<"~"<<VERSION\
- <<"  length:"<< header_ptr->length+(HEADER_LEN + CRC_DATA_LEN)<<"  receiver:"<<header_ptr->receiver<<"~"<<DEVICE\
+ LOG_INFO<<"SOF:"<<header_ptr->sof<<"  VERSION:"<<header_ptr->version\
+ <<"  length:"<< header_ptr->length<<"  receiver:"<<header_ptr->receiver\
  <<"  HEADER_LEN:"<<HEADER_LEN;
   if ((header_ptr->sof == SOF) && (header_ptr->version == VERSION) &&
-      (header_ptr->length+(HEADER_LEN + CRC_DATA_LEN) < MAX_PACK_SIZE) &&
-      (header_ptr->receiver == DEVICE || header_ptr->receiver == 0xFF)) {
-      LOG_INFO<<"VerifyHeader check is ok !!!!";
+      (header_ptr->length < MAX_PACK_SIZE) &&
+      (header_ptr->receiver == DEVICE || header_ptr->receiver == 0xFF) &&
+      CRCHeadCheck((uint8_t *) header_ptr, HEADER_LEN)) {
+
     // It is an unused part because minimum package is more longer than a header
     //LX CHANGE 0322
     // maybe length > HEADER_LEN
-    if (header_ptr->length+(HEADER_LEN + CRC_DATA_LEN) == HEADER_LEN) {
+    if (header_ptr->length == HEADER_LEN) {
     //END 0322
       is_frame = ContainerHandler();
       //prepare data stream
@@ -619,9 +745,8 @@ bool Protocol::VerifyHeader() {
 
 bool Protocol::VerifyData() {
   Header *header_ptr = (Header *) (recv_stream_ptr_->recv_buff);
-  //header_ptr->length+=(HEADER_LEN + CRC_DATA_LEN);
   bool is_frame = false;
-  if (CRCTailCheck((uint8_t *) header_ptr, header_ptr->length+(HEADER_LEN + CRC_DATA_LEN))) {
+  if (CRCTailCheck((uint8_t *) header_ptr, header_ptr->length)) {
 
     is_frame = ContainerHandler();
     //prepare data stream
@@ -638,32 +763,149 @@ bool Protocol::ContainerHandler() {
 
   Header *session_header_ptr = nullptr;
   Header *header_ptr = (Header *) (recv_stream_ptr_->recv_buff);
-  //header_ptr->length+=(HEADER_LEN + CRC_DATA_LEN);
   bool is_frame = false;
+  LOG_INFO<<"run ContainerHandler";
+  if (header_ptr->is_ack) {
+    LOG_INFO<<"run is_ack is ture";
+    if (header_ptr->session_id > 0 && header_ptr->session_id < 32) {
+      if (cmd_session_table_[header_ptr->session_id].usage_flag == 1) {
 
-        //recv_container_ptr_->message_header.is_ack = false;
-        //recv_container_ptr_->message_header.seq_num = header_ptr->seq_num;
+        memory_pool_ptr_->LockMemory();
+        session_header_ptr = (Header *) cmd_session_table_[header_ptr->session_id].memory_block_ptr->memory_ptr;
+
+        if (session_header_ptr->session_id == header_ptr->session_id
+          // HotFix: Commented here. Redefine that ack and cmd can have different seq num during communication
+          // && session_header_ptr->seq_num == header_ptr->seq_num
+            ) {
+
+          recv_container_ptr_->message_header.is_ack = true;
+          recv_container_ptr_->message_header.seq_num = header_ptr->seq_num;//HotFix as above: session_header_ptr->seq_num originally
+
+          recv_container_ptr_->message_header.session_id = header_ptr->session_id;
+          recv_container_ptr_->command_info.length = header_ptr->length - HEADER_LEN - CRC_DATA_LEN;
+          recv_container_ptr_->command_info.sender = header_ptr->sender;
+          recv_container_ptr_->command_info.receiver = header_ptr->receiver;
+          recv_container_ptr_->command_info.cmd_set = cmd_session_table_[header_ptr->session_id].cmd_set;
+          recv_container_ptr_->command_info.cmd_id = cmd_session_table_[header_ptr->session_id].cmd_id;
+          recv_container_ptr_->command_info.need_ack = true;
+
+          memcpy(recv_container_ptr_->message_data.raw_data, (uint8_t *) header_ptr + HEADER_LEN,
+                 header_ptr->length - HEADER_LEN - CRC_DATA_LEN);
+
+          is_frame = true;
+          FreeCMDSession(&cmd_session_table_[header_ptr->session_id]);
+          memory_pool_ptr_->UnlockMemory();
+          // TODO: notify mechanism ,notify ack received and get recv container ready
+
+        } else {
+          memory_pool_ptr_->UnlockMemory();
+        }
+      }
+    }
+  } else {
+    LOG_INFO<<"run is_ack is false"<<"  session_id:"<<header_ptr->session_id;
+    switch (header_ptr->session_id) {
+      case 0:recv_container_ptr_->message_header.is_ack = false;
+        recv_container_ptr_->message_header.seq_num = header_ptr->seq_num;
         recv_container_ptr_->message_header.session_id = header_ptr->session_id;
         recv_container_ptr_->command_info.sender = header_ptr->sender;
         recv_container_ptr_->command_info.receiver = header_ptr->receiver;
-        recv_container_ptr_->command_info.length = header_ptr->length+(HEADER_LEN + CRC_DATA_LEN) - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN;
-        //LX CHANGE 0325
-        //recv_container_ptr_->command_info.cmd_set = *((uint8_t *) header_ptr + HEADER_LEN + 1);
-        //recv_container_ptr_->command_info.cmd_id = *((uint8_t *) header_ptr + HEADER_LEN);
-        recv_container_ptr_->command_info.cmd_set = CMD_SET_CONST;
-        recv_container_ptr_->command_info.cmd_id =header_ptr->session_id;
-        //recv_container_ptr_->command_info.need_ack = false;
-        //END 0325
-        // for(int i=0;i<header_ptr->length+(HEADER_LEN + CRC_DATA_LEN);i++)
-        //{
-        //     LOG_INFO<<" | "<<  (int)*((uint8_t *) header_ptr + i)<<" | ";
-        //}
+        recv_container_ptr_->command_info.length = header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN;
+        recv_container_ptr_->command_info.cmd_set = *((uint8_t *) header_ptr + HEADER_LEN + 1);
+        recv_container_ptr_->command_info.cmd_id = *((uint8_t *) header_ptr + HEADER_LEN);
+        recv_container_ptr_->command_info.need_ack = false;
+        for(int i=0;i<header_ptr->length;i++)
+        {
+            LOG_INFO<<" | "<<  (int)*((uint8_t *) header_ptr + i)<<" | ";
+        }
 
-        memcpy(recv_container_ptr_->message_data.raw_data, (uint8_t *) header_ptr + HEADER_LEN ,
-               header_ptr->length+(HEADER_LEN + CRC_DATA_LEN) - HEADER_LEN - CRC_DATA_LEN);
+        memcpy(recv_container_ptr_->message_data.raw_data, (uint8_t *) header_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN,
+               header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN);
 
         is_frame = true;
-//        LOG_INFO<<"run memcpy:"<<header_ptr->length+(HEADER_LEN + CRC_DATA_LEN) - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN<<" HEADER_LEN:"<<HEADER_LEN;
+        LOG_INFO<<"run memcpy:"<<header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN<<" HEADER_LEN:"<<HEADER_LEN;
+        break;
+      case 1:
+        //TODO: Currently regard session_1 as session_auto but never change the ack session status, ack session always stay idle status for session_1
+        //break;
+      default:
+        if (header_ptr->session_id > 31) {
+          return false;
+        } else {
+          //TODO ack session table is supposed to indexed by command sender instead of receiver, as receiver is always local device address
+          switch (ack_session_table_[header_ptr->receiver][header_ptr->session_id - 1].session_status) {
+            case ACKSessionStatus::ACK_SESSION_IDLE:
+
+              if (header_ptr->session_id > 1) {
+                memory_pool_ptr_->LockMemory();
+                ack_session_table_[header_ptr->receiver][header_ptr->session_id - 1].session_status =
+                    ACKSessionStatus::ACK_SESSION_PROCESS;
+                memory_pool_ptr_->UnlockMemory();
+              }
+
+              recv_container_ptr_->message_header.is_ack = false;
+              recv_container_ptr_->message_header.seq_num = header_ptr->seq_num;
+              recv_container_ptr_->message_header.session_id = header_ptr->session_id;
+              recv_container_ptr_->command_info.sender = header_ptr->sender;
+              recv_container_ptr_->command_info.receiver = header_ptr->receiver;
+              recv_container_ptr_->command_info.length =
+                  header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN;
+              recv_container_ptr_->command_info.cmd_set = *((uint8_t *) header_ptr + HEADER_LEN + 1);
+              recv_container_ptr_->command_info.cmd_id = *((uint8_t *) header_ptr + HEADER_LEN);
+              recv_container_ptr_->command_info.need_ack = true;
+
+              memcpy(recv_container_ptr_->message_data.raw_data,
+                     (uint8_t *) header_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN,
+                     header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN);
+              is_frame = true;
+              break;
+
+            case ACKSessionStatus::ACK_SESSION_PROCESS:
+
+              DLOG_INFO << "Wait for app ack for session " << header_ptr->session_id;
+              break;
+
+            case ACKSessionStatus::ACK_SESSION_USING:
+
+              memory_pool_ptr_->LockMemory();
+              session_header_ptr = (Header *) ack_session_table_[header_ptr->receiver][header_ptr->session_id
+                  - 1].memory_block_ptr->memory_ptr;
+
+              if (session_header_ptr->seq_num == header_ptr->seq_num) {
+                DeviceSend((uint8_t *) session_header_ptr);
+                memory_pool_ptr_->UnlockMemory();
+              } else {
+
+                ack_session_table_[header_ptr->receiver][header_ptr->session_id - 1].session_status =
+                    ACKSessionStatus::ACK_SESSION_PROCESS;
+                memory_pool_ptr_->UnlockMemory();
+
+                recv_container_ptr_->message_header.is_ack = false;
+                recv_container_ptr_->message_header.seq_num = header_ptr->seq_num;
+                recv_container_ptr_->message_header.session_id = header_ptr->session_id;
+                recv_container_ptr_->command_info.sender = header_ptr->sender;
+                recv_container_ptr_->command_info.receiver = header_ptr->receiver;
+                recv_container_ptr_->command_info.length =
+                    header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN;
+                recv_container_ptr_->command_info.cmd_set = *((uint8_t *) header_ptr + HEADER_LEN + 1);
+                recv_container_ptr_->command_info.cmd_id = *((uint8_t *) header_ptr + HEADER_LEN);
+                recv_container_ptr_->command_info.need_ack = true;
+                memcpy(recv_container_ptr_->message_data.raw_data,
+                       (uint8_t *) header_ptr + HEADER_LEN + CMD_SET_PREFIX_LEN,
+                       header_ptr->length - HEADER_LEN - CMD_SET_PREFIX_LEN - CRC_DATA_LEN);
+                is_frame = true;
+
+              }
+              break;
+
+            default:
+              DLOG_ERROR << "Wrong ACK session status which is out of 0-2";
+          }
+
+        }
+
+    }
+  }
 
   return is_frame;
 }
@@ -676,12 +918,12 @@ void Protocol::PrepareStream() {
   memmove(recv_stream_ptr_->recv_buff, recv_stream_ptr_->recv_buff + index_of_move, bytes_to_move);
   memset(recv_stream_ptr_->recv_buff + bytes_to_move, 0, index_of_move);
   recv_stream_ptr_->recv_index = bytes_to_move;
- // LOG_INFO<<"RUN PrepareStream  recv_index:"<< recv_stream_ptr_->recv_index;
+  LOG_INFO<<"RUN PrepareStream  recv_index:"<< recv_stream_ptr_->recv_index;
 }
 
 void Protocol::ShiftStream() {
   if (recv_stream_ptr_->recv_index) {
-     // LOG_INFO<<"RUN ShiftStream  recv_index:"<< recv_stream_ptr_->recv_index;
+      LOG_INFO<<"RUN ShiftStream  recv_index:"<< recv_stream_ptr_->recv_index;
     recv_stream_ptr_->recv_index--;
     if (recv_stream_ptr_->recv_index) {
       memmove(recv_stream_ptr_->recv_buff, recv_stream_ptr_->recv_buff + 1, recv_stream_ptr_->recv_index);
@@ -739,8 +981,6 @@ uint16_t Protocol::CRC16Calc(const uint8_t *data_ptr, size_t length) {
   return crc;
 }
 
-//LX CHANGE 0325
-/*orignal
 uint32_t Protocol::CRC32Calc(const uint8_t *data_ptr, size_t length) {
   size_t i;
   uint32_t crc = CRC_INIT;
@@ -751,13 +991,6 @@ uint32_t Protocol::CRC32Calc(const uint8_t *data_ptr, size_t length) {
 
   return crc;
 }
- */
-//!set Frame tail always is  CRC_INIT
- uint16_t Protocol::CRC32Calc(const uint8_t *data_ptr, size_t length) {
-  uint16_t crc = CRC_INIT;
-  return crc;
-}
-//END
 //LX CHANGE 0322
 //Change crc check always ok!
 /*
@@ -781,12 +1014,8 @@ bool Protocol::CRCTailCheck(uint8_t *data_ptr, size_t length) {
   }
 }
 */
-//! tail crc check
     bool Protocol::CRCTailCheck(uint8_t *data_ptr, size_t length) {
-      if((data_ptr[length-1]==HALF_CRC_INIT)&&(data_ptr[length-2]==HALF_CRC_INIT))
         return true;
-      else
-        return false;
     }
 //END 0322
 }

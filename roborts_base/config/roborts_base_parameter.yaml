@@ -1,3 +1,2 @@
-serial_port : "/dev/ttyUSB1"
-#serial_port : "/dev/pts/27"
-serial_baudrate : 115200
+serial_port : "/dev/pts/26"
+serial_baudrate : 921600

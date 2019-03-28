@@ -27,8 +27,7 @@ namespace roborts_sdk {
 #define GIMBAL_ADDRESS                 (0X02u)
 #define BROADCAST_ADDRESS              (0Xffu)
 
-//CMD_SET
-#define CMD_SET_CONST                  (0x01u)
+//CMD_SET                            
 #define UNIVERSAL_CMD_SET              (0x00u)
 #define CHASSIS_CMD_SET                (0x01u)
 #define GIMBAL_CMD_SET                 (0x02u)
@@ -50,82 +49,49 @@ typedef struct
 
 
 /*-----------------------------CHASSIS_CMD---- 0x01 ---------------------*/
-#define CMD_SET_CHASSIS_ACK           (0X00u)
-typedef struct{
-    u_int8_t ack_value;
-}cmd_chassis_ack;
 
-#define CMD_SET_CHASSIS_CLOCK           (0X01u)
+#define CMD_PUSH_CHASSIS_INFO          (0X01u)
 typedef struct {
-    u_int16_t year;
-    u_int8_t month;
-    u_int8_t day;
-    u_int8_t hour;
-    u_int8_t minute;
-    u_int8_t sec;
-}cmd_chassis_clock;
+  int16_t gyro_angle;
+  int16_t gyro_rate;
+  int32_t position_x_mm;
+  int32_t position_y_mm;
+  int16_t angle_deg;
+  int16_t v_x_mm;
+  int16_t v_y_mm;
+} cmd_chassis_info;
 
-#define CMD_SET_CHASSIS_SPEED          (0X02u)
+#define CMD_SET_CHASSIS_SPEED          (0X03u)
 typedef struct {
-    float v_line;
-    float v_angle;
+  int16_t vx;
+  int16_t vy;
+  int16_t vw;
+  int16_t rotate_x_offset;
+  int16_t rotate_y_offset;
 } cmd_chassis_speed;
 
-#define CMD_SET_CHASSIS_STOP          (0X03u)
+
+#define CMD_GET_CHASSIS_PARAM          (0X04u)
 typedef struct {
-    u_int8_t stop_value;
-} cmd_chassis_stop;
+  uint16_t wheel_perimeter;
+  uint16_t wheel_track;
+  uint16_t wheel_base;
+  int16_t gimbal_x_offset;
+  int16_t gimbal_y_offset;
+} cmd_chassis_param;
 
-#define CMD_SET_CHASSIS_REQ          (0X04u)
+
+#define CMD_SET_CHASSIS_SPD_ACC        (0X05u)
 typedef struct {
-    u_int8_t req_value;
-} cmd_chassis_req;
-
-#define CMD_SET_CHASSIS_FALUT_WDT          (0X05u)
-typedef struct {
-    u_int8_t fault_wdt_value;
-} cmd_chassis_fault_wdt;
-
-
-#define CMD_PUSH_CHASSIS_FALUT_CODE          (0X80u)
-typedef struct {
-    u_int8_t fault_code_value;
-} cmd_chassis_fault_code;
-
-#define CMD_PUSH_CHASSIS_REQ_CLOCK          (0X81u)
-typedef struct {
-    u_int8_t req_clock_value;
-} cmd_chassis_req_clock;
-
-#define CMD_PUSH_CHASSIS_POSE          (0X82u)
-typedef struct {
-    float v_line;
-    float v_angle;
-    float position_x_mm;
-    float position_y_mm;
-    float position_angle;
-    u_int32_t time_ms;
-} cmd_chassis_pose;
-
-#define CMD_PUSH_CHASSIS_BATTERY_STA          (0X83u)
-typedef struct {
-    float voltage;
-    float quantity;
-} cmd_chassis_battery_sta;
-
-#define CMD_PUSH_CHASSIS_SONAR_DATA          (0X84u)
-typedef struct {
-    float dis1;
-    float dis2;
-    float dis3;
-    float dis4;
-} cmd_chassis_battery_sonar_data;
-
-#define CMD_PUSH_CHASSIS_FALUT_WDT          (0X85u)
-    typedef struct {
-        u_int8_t fault_wdt_value;
-    } cmd_chassis_fault_wdt_push;
-
+  int16_t vx;
+  int16_t vy;
+  int16_t vw;
+  int16_t ax;
+  int16_t ay;
+  int16_t wz;
+  int16_t rotate_x_offset;
+  int16_t rotate_y_offset;
+} cmd_chassis_spd_acc;
 
 /*-----------------------------GIMBAL_CMD---- 0x02 ---------------------*/
 
