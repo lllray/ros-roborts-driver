@@ -17,7 +17,7 @@
 
 #include "chassis.h"
 #include "../roborts_sdk/sdk.h"
-
+#include <time.h>
 namespace roborts_base{
 Chassis::Chassis(std::shared_ptr<roborts_sdk::Handle> handle):
     handle_(handle){
@@ -46,29 +46,54 @@ void Chassis::SDK_Init(){
                                                <<int(future.get()->version_id&0xFF);
                                     });
  // robot chassis info sub sdk
-  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_pose>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_POSE,
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_ack_push>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_ACK,
                                                            CHASSIS_ADDRESS, IPC_ADDRESS,
-                                                           std::bind(&Chassis::ChassisInfoCallback, this, std::placeholders::_1));
+                                                           std::bind(&Chassis::ChassisAckInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_fault_code>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_FALUT_CODE,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisFaultCodeInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_req_clock>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_REQ_CLOCK,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisReqClockInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_pose>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_POSE,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisPoseInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_battery_sta>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_BATTERY_STA,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisBatteryStaInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_sonar_data>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_SONAR_DATA,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisSonarDataInfoCallback, this, std::placeholders::_1));
+
+  handle_->CreateSubscriber<roborts_sdk::cmd_chassis_fault_wdt_push>(CHASSIS_CMD_SET, CMD_PUSH_CHASSIS_FALUT_WDT,
+                                                             CHASSIS_ADDRESS, IPC_ADDRESS,
+                                                             std::bind(&Chassis::ChassisFaultWdtPushInfoCallback, this, std::placeholders::_1));
 
  // robot chassis speed ctl pub sdk
+  chassis_ack_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_ack>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_ACK,
+                                                                                  IPC_ADDRESS, CHASSIS_ADDRESS);
+
+  chassis_clock_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_clock>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_CLOCK,
+                                                                                IPC_ADDRESS, CHASSIS_ADDRESS);
+
   chassis_speed_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_speed>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_SPEED,
                                                                                 IPC_ADDRESS, CHASSIS_ADDRESS);
 
-  heartbeat_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_heartbeat>(UNIVERSAL_CMD_SET, CMD_HEARTBEAT,
+  chassis_stop_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_stop>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_STOP,
+                                                                                  IPC_ADDRESS, CHASSIS_ADDRESS);
 
-                                                                           IPC_ADDRESS, CHASSIS_ADDRESS);
-/*  heartbeat_thread_ = std::thread([this]{
-                                        roborts_sdk::cmd_heartbeat heartbeat;
-                                        heartbeat.heartbeat=0;
-                                        while(ros::ok()){
-                                          heartbeat_pub_->Publish(heartbeat);
-                                          std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                                        }
-                                      }
+  chassis_req_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_req>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_REQ,
+                                                                                 IPC_ADDRESS, CHASSIS_ADDRESS);
 
-  );
-  */
+  chassis_fault_wdt_pub_ = handle_->CreatePublisher<roborts_sdk::cmd_chassis_fault_wdt>(CHASSIS_CMD_SET, CMD_SET_CHASSIS_FALUT_WDT,
+                                                                                IPC_ADDRESS, CHASSIS_ADDRESS);
 
+  req_data_thread_ = std::thread(&Chassis::ReqDataThreadHandle,this);
 
 }
 void Chassis::ROS_Init(){
@@ -77,8 +102,6 @@ void Chassis::ROS_Init(){
 
   //ros subscriber
   ros_sub_cmd_chassis_vel_ = ros_nh_.subscribe("cmd_vel", 1, &Chassis::ChassisSpeedCtrlCallback, this);
-  //ros_sub_cmd_chassis_vel_acc_ = ros_nh_.subscribe("cmd_vel_acc", 1, &Chassis::ChassisSpeedAccCtrlCallback, this);
-
 
   //ros_message_init
   odom_.header.frame_id = "odom";
@@ -88,14 +111,59 @@ void Chassis::ROS_Init(){
   odom_tf_.child_frame_id = "base_link";
 
 }
-void Chassis::ChassisInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_pose> chassis_info){
+
+void Chassis::ReqDataThreadHandle()
+{
+    roborts_sdk::cmd_chassis_req chassis_req;
+    chassis_req.req_pose=true;
+    chassis_req.req_vel=true;
+    chassis_req.req_sonar=true;
+    chassis_req.req_battery_sta=true;
+    chassis_req.req_null=false;
+    while(ros::ok()){
+        chassis_req_pub_->Publish(chassis_req);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+}
+void Chassis::ChassisAckInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_ack_push> chassis_info)
+{
+
+}
+
+void Chassis::ChassisFaultCodeInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_fault_code> chassis_info){}
+
+void Chassis::ChassisReqClockInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_req_clock> chassis_info)
+{
+    if(chassis_info->req_clock_value)
+    {
+        roborts_sdk::cmd_chassis_clock chassis_clock;
+        time_t tt;
+        time( &tt );
+        tt = tt + 8*3600;  // transform the time zone
+        tm* t= gmtime( &tt );
+        chassis_clock.year=t->tm_year + 1900;
+        chassis_clock.month=t->tm_mon + 1;
+        chassis_clock.day=t->tm_mday;
+        chassis_clock.hour=t->tm_hour;
+        chassis_clock.minute=t->tm_min;
+        chassis_clock.sec=t->tm_sec;
+        LOG_INFO<<"Times:"<<(int)chassis_clock.year<<"-"<<(int)chassis_clock.month<<"-"<<\
+        (int)chassis_clock.day<<"  "<<(int)chassis_clock.hour<<":"<<(int)chassis_clock.minute<<":"<<\
+        (int)chassis_clock.sec;
+        chassis_clock_pub_->Publish(chassis_clock);
+    }
+}
+
+void Chassis::ChassisBatteryStaInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_battery_sta> chassis_info){}
+
+void Chassis::ChassisSonarDataInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_sonar_data> chassis_info){}
+
+void Chassis::ChassisFaultWdtPushInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_fault_wdt_push> chassis_info){}
+
+
+void Chassis::ChassisPoseInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_pose> chassis_info){
  LOG_INFO<<"RUN ChassisInfoCallback  chassis_info:";
- LOG_INFO<<chassis_info->v_angle;
- LOG_INFO<<chassis_info->v_line;
- LOG_INFO<<chassis_info->position_x_mm;
- LOG_INFO<<chassis_info->position_y_mm;
- LOG_INFO<<chassis_info->position_angle;
- LOG_INFO<<chassis_info->time_ms;
+ LOG_INFO<<chassis_info->v_line<<" "<<chassis_info->v_angle<<" "<<chassis_info->position_x_mm<<" "<<chassis_info->position_y_mm<<" "<<chassis_info->position_angle<<" "<<chassis_info->time_ms;
 
 
   ros::Time current_time = ros::Time::now();
@@ -107,6 +175,7 @@ void Chassis::ChassisInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis
   odom_.pose.pose.orientation = q;
   odom_.twist.twist.linear.x = chassis_info->v_line;
   //odom_.twist.twist.linear.y = chassis_info->v_y_mm / 1000.0;
+  odom_.twist.twist.linear.y=0;
   odom_.twist.twist.angular.z = chassis_info->v_angle;
   ros_odom_pub_.publish(odom_);
 

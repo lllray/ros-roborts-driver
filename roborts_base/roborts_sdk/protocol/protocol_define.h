@@ -78,7 +78,11 @@ typedef struct {
 
 #define CMD_SET_CHASSIS_REQ          (0X04u)
 typedef struct {
-    u_int8_t req_value;
+    u_int8_t req_vel :1;
+    u_int8_t req_pose :1;
+    u_int8_t req_battery_sta :1;
+    u_int8_t req_sonar :1;
+    u_int8_t req_null :4;
 } cmd_chassis_req;
 
 #define CMD_SET_CHASSIS_FALUT_WDT          (0X05u)
@@ -86,18 +90,22 @@ typedef struct {
     u_int8_t fault_wdt_value;
 } cmd_chassis_fault_wdt;
 
+#define CMD_PUSH_CHASSIS_ACK          (0X80u)
+    typedef struct {
+        u_int8_t fault_code_value;
+    } cmd_chassis_ack_push;
 
-#define CMD_PUSH_CHASSIS_FALUT_CODE          (0X80u)
+#define CMD_PUSH_CHASSIS_FALUT_CODE          (0X81u)
 typedef struct {
     u_int8_t fault_code_value;
 } cmd_chassis_fault_code;
 
-#define CMD_PUSH_CHASSIS_REQ_CLOCK          (0X81u)
+#define CMD_PUSH_CHASSIS_REQ_CLOCK          (0X82u)
 typedef struct {
     u_int8_t req_clock_value;
 } cmd_chassis_req_clock;
 
-#define CMD_PUSH_CHASSIS_POSE          (0X82u)
+#define CMD_PUSH_CHASSIS_POSE          (0X83u)
 typedef struct {
     float v_line;
     float v_angle;
@@ -107,21 +115,21 @@ typedef struct {
     u_int32_t time_ms;
 } cmd_chassis_pose;
 
-#define CMD_PUSH_CHASSIS_BATTERY_STA          (0X83u)
+#define CMD_PUSH_CHASSIS_BATTERY_STA          (0X84u)
 typedef struct {
     float voltage;
     float quantity;
 } cmd_chassis_battery_sta;
 
-#define CMD_PUSH_CHASSIS_SONAR_DATA          (0X84u)
+#define CMD_PUSH_CHASSIS_SONAR_DATA          (0X85u)
 typedef struct {
     float dis1;
     float dis2;
     float dis3;
     float dis4;
-} cmd_chassis_battery_sonar_data;
+} cmd_chassis_sonar_data;
 
-#define CMD_PUSH_CHASSIS_FALUT_WDT          (0X85u)
+#define CMD_PUSH_CHASSIS_FALUT_WDT          (0X86u)
     typedef struct {
         u_int8_t fault_wdt_value;
     } cmd_chassis_fault_wdt_push;

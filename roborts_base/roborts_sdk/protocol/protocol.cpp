@@ -27,7 +27,7 @@ namespace roborts_sdk {
 Protocol::Protocol(std::shared_ptr<SerialDevice> serial_device_ptr) :
     running_(false),
     serial_device_ptr_(serial_device_ptr), seq_num_(0),
-    is_large_data_protocol_(true), reuse_buffer_(true),
+    is_large_data_protocol_(false), reuse_buffer_(true),
     poll_tick_(10) {
 
 }
@@ -130,7 +130,7 @@ void Protocol::ReceivePool() {
   while (running_) {
       //LOG_INFO<<"run ReceivePool";
     RecvContainer *container_ptr = Receive();
-      LOG_INFO<<"run container_ptr="<<container_ptr;
+     // LOG_INFO<<"run container_ptr="<<container_ptr;
     if (container_ptr) {
       //LOG_INFO<<"run container_ptr==ture";
       if (buffer_pool_map_.count(std::make_pair(container_ptr->command_info.cmd_set,

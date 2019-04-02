@@ -47,12 +47,26 @@ class Chassis {
    * @brief Initialization of ROS
    */
   void ROS_Init();
+//LX ADD 0402
 
+  void ChassisAckInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_ack_push> chassis_info);
+
+  void ChassisFaultCodeInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_fault_code> chassis_info);
+
+  void ChassisReqClockInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_req_clock> chassis_info);
+
+  void ChassisBatteryStaInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_battery_sta> chassis_info);
+
+  void ChassisSonarDataInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_sonar_data> chassis_info);
+
+  void ChassisFaultWdtPushInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_fault_wdt_push> chassis_info);
+
+//END 0402
   /**
    * @brief Chassis information callback in sdk
    * @param chassis_info Chassis information
    */
-  void ChassisInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_pose> chassis_info);
+  void ChassisPoseInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_pose> chassis_info);
 
   /**
    * @brief Chassis speed control callback in ROS
@@ -66,6 +80,8 @@ class Chassis {
    */
   void ChassisSpeedAccCtrlCallback(const roborts_msgs::TwistAccel::ConstPtr &vel_acc);
 
+
+  void ReqDataThreadHandle();
   //! sdk handler
   std::shared_ptr<roborts_sdk::Handle> handle_;
   //! sdk version client
@@ -74,9 +90,15 @@ class Chassis {
 
   //! sdk heartbeat thread
   std::thread heartbeat_thread_;
+  std::thread req_data_thread_;
   //! sdk publisher for heartbeat
   std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_heartbeat>> heartbeat_pub_;
 
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_ack>> chassis_ack_pub_;
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_clock>> chassis_clock_pub_;
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_stop>> chassis_stop_pub_;
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_req>> chassis_req_pub_;
+  std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_fault_wdt>> chassis_fault_wdt_pub_;
   //! sdk publisher for chassis speed control
   std::shared_ptr<roborts_sdk::Publisher<roborts_sdk::cmd_chassis_speed>> chassis_speed_pub_;
   //! sdk publisher for chassis speed and acceleration control
