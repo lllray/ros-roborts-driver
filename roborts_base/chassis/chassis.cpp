@@ -18,6 +18,8 @@
 #include "chassis.h"
 #include "../roborts_sdk/sdk.h"
 #include <time.h>
+
+int req_clock_flag=0;
 namespace roborts_base{
 Chassis::Chassis(std::shared_ptr<roborts_sdk::Handle> handle):
     handle_(handle){
@@ -115,12 +117,15 @@ void Chassis::ROS_Init(){
 void Chassis::ReqDataThreadHandle()
 {
     roborts_sdk::cmd_chassis_req chassis_req;
+    roborts_sdk::cmd_chassis_ack chassis_ack;
     chassis_req.req_pose=true;
     chassis_req.req_vel=true;
     chassis_req.req_sonar=true;
     chassis_req.req_battery_sta=true;
     chassis_req.req_null=false;
+    chassis_ack.ack_value=0x00;
     while(ros::ok()){
+        if(!req_clock_flag) chassis_ack_pub_->Publish(chassis_ack);
         chassis_req_pub_->Publish(chassis_req);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -134,6 +139,7 @@ void Chassis::ChassisFaultCodeInfoCallback(const std::shared_ptr<roborts_sdk::cm
 
 void Chassis::ChassisReqClockInfoCallback(const std::shared_ptr<roborts_sdk::cmd_chassis_req_clock> chassis_info)
 {
+    req_clock_flag=1;
     if(chassis_info->req_clock_value)
     {
         roborts_sdk::cmd_chassis_clock chassis_clock;
